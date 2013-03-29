@@ -50,7 +50,7 @@ instance Sink Statsd where
 
 -- | Open a new Statsd sink
 open :: Host -> HostName -> PortNumber -> IO AnySink
-open host = fOpen (Statsd host) Datagram
+open host hostname port = fOpen (Statsd host) Datagram hostname (toPortNumber port)
 
 --
 -- Private

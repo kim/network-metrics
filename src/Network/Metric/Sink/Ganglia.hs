@@ -108,7 +108,7 @@ defaultMetric = GangliaMetric
 
 -- | Open a new Ganglia sink
 open :: Host -> HostName -> PortNumber -> IO AnySink
-open host = fOpen (Ganglia host) Datagram
+open host hostname port = fOpen (Ganglia host) Datagram hostname (toPortNumber port)
 
 -- | Encode a GangliaMetric's metadata into a Binary.Put monad
 --

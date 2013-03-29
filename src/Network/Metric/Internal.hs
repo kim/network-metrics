@@ -19,6 +19,7 @@ module Network.Metric.Internal (
     , Group
     , Bucket
     , Metric(..)
+    , PortNumber(..)
 
     -- * Existential Types
     , AnyMeasurable(..)
@@ -31,6 +32,7 @@ module Network.Metric.Internal (
 
     -- * General Functions
     , key
+    , toPortNumber
 
     -- * Socket Handle Functions
     , fOpen
@@ -40,11 +42,11 @@ module Network.Metric.Internal (
 
     -- * Re-exports
     , S.HostName
-    , S.PortNumber(..)
     ) where
 
 import Control.Monad (liftM, unless)
 import Data.Typeable (Typeable)
+import Data.Word     (Word16)
 import Text.Printf   (printf)
 
 import qualified Data.ByteString.Char8          as BS
@@ -69,6 +71,32 @@ data Metric
     | Timer Group Bucket Double
     | Gauge Group Bucket Double
       deriving (Show, Eq)
+
+-- | A wrapper around 'Network.Socket.PortNumber' to fix issue #3
+newtype PortNumber = PortNum S.PortNumber
+    deriving (Show, Eq, Ord)
+
+instance Num PortNumber where
+    fromInteger = PortNum . fromInteger
+    (+) (PortNum a) (PortNum b) = PortNum $ (+) a b
+    (-) (PortNum a) (PortNum b) = PortNum $ (-) a b
+    negate (PortNum a)          = PortNum (negate a)
+    (*) (PortNum a) (PortNum b) = PortNum $ (*) a b
+    abs (PortNum a)             = PortNum (abs a)
+    signum (PortNum a)          = PortNum (signum a)
+
+instance Integral PortNumber where
+    quotRem (PortNum a) (PortNum b) =
+        let (c, d) = quotRem a b in (PortNum c, PortNum d)
+
+    toInteger (PortNum a) = toInteger a
+
+instance Real PortNumber where
+    toRational (PortNum a) = toRational a
+
+instance Enum PortNumber where
+    toEnum = PortNum . toEnum
+    fromEnum (PortNum a) = fromEnum a
 
 --
 -- Type Classes
@@ -147,10 +175,13 @@ fOpen ctor typ host port = liftM (AnySink . ctor) (hOpen typ host port)
 
 -- | Create a new socket handle (in a disconnected state) for UDP communication
 hOpen :: S.SocketType -> S.HostName -> S.PortNumber -> IO Handle
-hOpen typ host (S.PortNum port) = do
-    (addr:_) <- S.getAddrInfo Nothing (Just host) (Just $ show port)
+hOpen typ host port = do
+    (addr:_) <- S.getAddrInfo Nothing (Just host) (Just . show . p2w $ port)
     sock     <- S.socket (S.addrFamily addr) typ S.defaultProtocol
     return $ Handle sock (S.addrAddress addr)
+  where
+    p2w :: S.PortNumber -> Word16
+    p2w = fromIntegral
 
 -- | Close a socket handle
 hClose :: Handle -> IO ()
@@ -163,3 +194,7 @@ hPush (Handle sock addr) bstr | BL.null bstr = return ()
     S.sIsConnected sock >>= \b -> unless b $ S.connect sock addr
     _ <- SBL.send sock bstr
     return ()
+
+-- | Convert a 'PortNumber' to a 'Network.Socket.PortNumber'
+toPortNumber :: PortNumber -> S.PortNumber
+toPortNumber (PortNum x) = x

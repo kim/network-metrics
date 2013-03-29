@@ -49,7 +49,7 @@ instance Sink Graphite where
 
 -- | Open a new Graphite sink
 open :: Host -> HostName -> PortNumber -> IO AnySink
-open host = fOpen (Graphite host) Stream
+open host hostname port = fOpen (Graphite host) Stream hostname (toPortNumber port)
 
 --
 -- Private
